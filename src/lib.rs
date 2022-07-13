@@ -1,4 +1,5 @@
 pub mod measurement;
+pub mod measurer;
 pub mod receiver;
 
 use std::net::IpAddr;

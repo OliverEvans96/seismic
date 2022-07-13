@@ -33,6 +33,7 @@ impl MeasurementSet {
     pub fn record(&mut self, count: u64) {
         let measurement = Measurement::new(self.start, count);
         self.measurements.push(measurement);
+        println!("Record {}", count);
     }
 
     pub fn print(&self) {

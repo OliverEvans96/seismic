@@ -1,15 +1,18 @@
 use std::{
-    sync::atomic::{AtomicU64, Ordering},
+    io::ErrorKind,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
-use anyhow::bail;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 
-use crate::measurement::MeasurementSet;
+use crate::{measurement::MeasurementSet, measurer::Measurer};
 
 pub struct Receiver {
     /// TCP Stream to read from
@@ -17,13 +20,11 @@ pub struct Receiver {
     /// Configuration values
     config: ReceiverConfig,
     /// Atomic chunk counter
-    counter: AtomicU64,
+    counter: Arc<AtomicU64>,
 }
 
 #[derive(Clone, Copy)]
 pub struct ReceiverConfig {
-    /// Total duration of measurement set
-    pub length: Duration,
     /// Measurement frequency
     pub freq: Duration,
     /// Bytes per chunk
@@ -34,7 +35,7 @@ pub struct ReceiverConfig {
 
 impl Receiver {
     pub fn new(stream: TcpStream, config: ReceiverConfig) -> Self {
-        let counter = AtomicU64::new(0);
+        let counter = Arc::new(AtomicU64::new(0));
         Self {
             stream,
             config,
@@ -42,24 +43,33 @@ impl Receiver {
         }
     }
 
-    fn split(self) -> (AtomicU64, Reader, Measurer) {
+    /// TODO: Get rid of this method, probably.
+    fn split(self) -> (Arc<AtomicU64>, Reader) {
         let stream = self.stream;
         let config = self.config;
 
         let reader = Reader::new(stream, config);
 
-        let measurer = Measurer::new(config);
-
-        (self.counter, reader, measurer)
+        (self.counter, reader)
     }
 
     pub async fn run(self) -> anyhow::Result<MeasurementSet> {
-        let (counter, mut reader, measurer) = self.split();
+        let freq = self.config.freq;
+        let (counter, mut reader) = self.split();
+        let (mut measurer, stopper) = Measurer::new(freq, counter.clone());
 
-        let read_fut = reader.run(&counter);
-        let measure_fut = measurer.run(&counter);
-        let (read_res, mset) = tokio::join!(read_fut, measure_fut);
+        // Start measuring
+        let mfut = tokio::spawn(async move { measurer.run().await });
 
+        // Start reading
+        let read_res = reader.run(counter).await;
+        // Stop measuring once reading is complete
+        stopper.stop();
+
+        // Get the measurements and return them
+        // if reading was successful
+        let mset = mfut.await?;
+        println!("End Receiver::run");
         read_res.and(Ok(mset))
     }
 }
@@ -82,26 +92,12 @@ impl Reader {
         }
     }
 
-    fn check_size(&self, nbytes: usize) -> anyhow::Result<()> {
-        if nbytes != self.buf.len() {
-            bail!(
-                "incorrect number of bytes read. nbytes = {}, CHUNK_SIZE = {}",
-                nbytes,
-                self.buf.len(),
-            );
-        }
-        Ok(())
-    }
-
-    async fn read_chunk(&mut self, counter: &AtomicU64) -> anyhow::Result<()> {
-        println!("Read chunk ({})", self.buf.len());
+    async fn read_chunk(&mut self, counter: &AtomicU64) -> std::io::Result<()> {
+        println!("Read chunk ({}): {:?}", self.buf.len(), &self.buf[..5]);
         match self.stream.read_exact(&mut self.buf).await {
             Ok(nbytes) => {
                 println!("Read {} bytes", nbytes);
-                // TODO: Which ordering?
                 counter.fetch_add(1, Ordering::SeqCst);
-                // TODO: Parse, don't validate?
-                self.check_size(nbytes)?;
 
                 // Optionally reply on stream
                 if self.config.echo {
@@ -110,62 +106,22 @@ impl Reader {
 
                 Ok(())
             }
-            Err(err) => {
-                return Err(err.into());
-            }
+            Err(err) => Err(err),
         }
     }
 
-    async fn run(&mut self, counter: &AtomicU64) -> anyhow::Result<()> {
-        // Ticks once at the end of the set
-        let timer = tokio::time::sleep(self.config.length);
-        // Necessary according to the docs
-        // since we poll it more than once
-        tokio::pin!(timer);
-
+    async fn run(&mut self, counter: Arc<AtomicU64>) -> anyhow::Result<()> {
         loop {
-            tokio::select! {
-                _ = self.read_chunk(counter) => {}
-                _ = &mut timer => { break; }
-            }
-        }
+            if let Err(err) = self.read_chunk(&counter).await {
+                println!("End Reader::run");
 
-        Ok(())
-    }
-}
-
-struct Measurer {
-    config: ReceiverConfig,
-}
-
-impl Measurer {
-    fn new(config: ReceiverConfig) -> Self {
-        Self { config }
-    }
-
-    async fn run(&self, counter: &AtomicU64) -> MeasurementSet {
-        // Ticks once for each measurement
-        let mut interval = tokio::time::interval(self.config.freq);
-        // Ticks once at the end of the set
-        let timer = tokio::time::sleep(self.config.length);
-
-        // Necessary according to the docs
-        // since we poll it more than once
-        tokio::pin!(timer);
-
-        let mut mset = MeasurementSet::new();
-
-        loop {
-            tokio::select! {
-                _ = &mut timer => { break; }
-                _ = interval.tick() => {
-                    // TODO: Which ordering?
-                    let count = counter.load(Ordering::SeqCst);
-                    mset.record(count);
+                // EOF _is_ expected here.
+                if err.kind() == ErrorKind::UnexpectedEof {
+                    return Ok(());
+                } else {
+                    return Err(err.into());
                 }
-            };
+            }
         }
-
-        mset
     }
 }
