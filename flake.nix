@@ -9,7 +9,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         rustPlatform = pkgs.rustPlatform;
-        in {
+      in {
         defaultPackage = rustPlatform.buildRustPackage {
           pname = "seismic";
           version = "0.1.0";
@@ -26,13 +26,8 @@
           src = ./.;
 
           # build-time deps
-          nativeBuildInputs = (with pkgs; [
-            rustc
-            cargo
-            lld
-            pkgconfig
-            udev
-          ]);
+          nativeBuildInputs =
+            (with pkgs; [ rustc cargo openssl lld pkgconfig udev ]);
         };
       });
 }

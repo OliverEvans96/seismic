@@ -8,3 +8,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+uuid = "1.1.2"
+clap = { version = "3.0", features = ["derive"] }
+anyhow = "1.0"
+thiserror = "1.0"
+
+[dependencies.tokio]
+features = [ "full" ]
+version = "1.19"
