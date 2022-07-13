@@ -72,8 +72,9 @@ struct Reader {
 
 impl Reader {
     pub fn new(stream: TcpStream, config: ReceiverConfig) -> Self {
-        let buf = Vec::with_capacity(config.chunk_size);
-        let length = config.length;
+        let mut buf = Vec::new();
+        buf.resize(config.chunk_size, 0);
+
         Self {
             stream,
             config,
