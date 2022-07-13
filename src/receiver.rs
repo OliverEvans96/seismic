@@ -93,10 +93,8 @@ impl Reader {
     }
 
     async fn read_chunk(&mut self, counter: &AtomicU64) -> std::io::Result<()> {
-        println!("Read chunk ({}): {:?}", self.buf.len(), &self.buf[..5]);
         match self.stream.read_exact(&mut self.buf).await {
-            Ok(nbytes) => {
-                println!("Read {} bytes", nbytes);
+            Ok(_nbytes) => {
                 counter.fetch_add(1, Ordering::SeqCst);
 
                 // Optionally reply on stream
@@ -111,16 +109,20 @@ impl Reader {
     }
 
     async fn run(&mut self, counter: Arc<AtomicU64>) -> anyhow::Result<()> {
+        use ErrorKind::{ConnectionReset, UnexpectedEof};
+
         loop {
             if let Err(err) = self.read_chunk(&counter).await {
                 println!("End Reader::run");
 
-                // EOF _is_ expected here.
-                if err.kind() == ErrorKind::UnexpectedEof {
-                    return Ok(());
-                } else {
-                    return Err(err.into());
-                }
+                return match err.kind() {
+                    // EOF _is_ expected here.
+                    UnexpectedEof | ConnectionReset => Ok(()),
+                    other => {
+                        eprintln!("KIND: {:?} ({})", other, other);
+                        Err(err.into())
+                    }
+                };
             }
         }
     }
