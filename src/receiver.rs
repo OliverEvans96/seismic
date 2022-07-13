@@ -4,21 +4,32 @@ use std::{
 };
 
 use anyhow::bail;
-use tokio::{io::AsyncReadExt, net::TcpStream};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 use crate::measurement::MeasurementSet;
 
 pub struct Receiver {
+    /// TCP Stream to read from
     stream: TcpStream,
+    /// Configuration values
     config: ReceiverConfig,
+    /// Atomic chunk counter
     counter: AtomicU64,
 }
 
 #[derive(Clone, Copy)]
 pub struct ReceiverConfig {
+    /// Total duration of measurement set
     pub length: Duration,
+    /// Measurement frequency
     pub freq: Duration,
+    /// Bytes per chunk
     pub chunk_size: usize,
+    /// Whether to echo data back to stream
+    pub echo: bool,
 }
 
 impl Receiver {
@@ -55,7 +66,7 @@ impl Receiver {
 
 struct Reader {
     stream: TcpStream,
-    length: Duration,
+    config: ReceiverConfig,
     buf: Vec<u8>,
 }
 
@@ -65,7 +76,7 @@ impl Reader {
         let length = config.length;
         Self {
             stream,
-            length,
+            config,
             buf,
         }
     }
@@ -82,12 +93,21 @@ impl Reader {
     }
 
     async fn read_chunk(&mut self, counter: &AtomicU64) -> anyhow::Result<()> {
+        println!("Read chunk ({})", self.buf.len());
         match self.stream.read_exact(&mut self.buf).await {
             Ok(nbytes) => {
+                println!("Read {} bytes", nbytes);
                 // TODO: Which ordering?
                 counter.fetch_add(1, Ordering::SeqCst);
                 // TODO: Parse, don't validate?
-                self.check_size(nbytes)
+                self.check_size(nbytes)?;
+
+                // Optionally reply on stream
+                if self.config.echo {
+                    self.stream.write_all(&self.buf).await?;
+                }
+
+                Ok(())
             }
             Err(err) => {
                 return Err(err.into());
@@ -97,7 +117,7 @@ impl Reader {
 
     async fn run(&mut self, counter: &AtomicU64) -> anyhow::Result<()> {
         // Ticks once at the end of the set
-        let timer = tokio::time::sleep(self.length);
+        let timer = tokio::time::sleep(self.config.length);
         // Necessary according to the docs
         // since we poll it more than once
         tokio::pin!(timer);

@@ -62,10 +62,13 @@ async fn main() {
 
     println!("Hello, server!");
 
+    // TODO: Don't configure length on server - let client decide.
+    // Therefore, reader should be able to send "stop" signal to measurer
     let config = ReceiverConfig {
         freq: Duration::from_millis(200),
         length: Duration::from_secs(5),
         chunk_size: 1024,
+        echo: true,
     };
 
     let data_fut = listen_data(opts.data_port, config);
