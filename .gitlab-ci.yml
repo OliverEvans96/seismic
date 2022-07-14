@@ -28,6 +28,7 @@ nix-build-docker-image:
 deploy-k8s:
   image: roffe/kubectl
   stage: deploy
+  when: manual
   only:
     refs:
       - main
