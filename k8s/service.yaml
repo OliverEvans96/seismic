@@ -10,15 +10,14 @@ metadata:
     metallb.universe.tf/allow-shared-ip: "seismic"
 spec:
   ports:
-    - name: grpc
-      port: 50051
-      targetPort: 50051
+    - name: data
+      port: 7225
+      targetPort: 7225
       protocol: TCP
-    - name: vrpn
-      port: 3883
-      targetPort: 3883
+    - name: control
+      port: 7224
+      targetPort: 7224
       protocol: TCP
   type: LoadBalancer
-#  loadBalancerIP: 67.58.49.50
   selector:
     app: seismic
