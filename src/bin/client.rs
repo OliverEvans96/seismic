@@ -42,7 +42,12 @@ async fn send_stream(config: SenderConfig) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() {
+    console_subscriber::init();
+
     let opts = Opts::parse();
+
+    println!("Waiting 3 seconds");
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
     println!("Hello, client!");
 

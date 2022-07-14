@@ -62,6 +62,7 @@ async fn handle_data(stream: TcpStream, addr: SocketAddr, config: ReceiverConfig
 
 #[tokio::main]
 async fn main() {
+    // console_subscriber::init();
     let opts = Opts::parse();
 
     println!("Hello, server!");
