@@ -7,7 +7,7 @@ nix-build-docker-image:
   image: nixos/nix:2.8.0
   variables:
     # NOTE: CACHIX_AUTH_TOKEN is set as a per-project Gitlab CI Variable
-    CACHIX_CACHE_NAME: nautilus-posenet
+    CACHIX_CACHE_NAME: seismic-monitoring
   before_script:
     # Enable nix flakes
     - echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
