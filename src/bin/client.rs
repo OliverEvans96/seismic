@@ -3,6 +3,7 @@ use std::time::Duration;
 use clap::Parser;
 
 use seismic::sender::{Sender, SenderConfig};
+use tracing::{error, info, instrument};
 
 #[derive(Parser)]
 struct Opts {
@@ -33,25 +34,33 @@ impl From<Opts> for SenderConfig {
     }
 }
 
+#[instrument(skip(config))]
 async fn send_stream(config: SenderConfig) -> anyhow::Result<()> {
     let sender = Sender::new(config).await?;
-    sender.run().await?;
+    match sender.run().await {
+        Ok(mset) => mset.print(),
+        Err(err) => {
+            error!("send error: {}", err);
+        }
+    }
 
     Ok(())
 }
 
+#[instrument]
 #[tokio::main]
 async fn main() {
-    console_subscriber::init();
+    // console_subscriber::init();
+    tracing_subscriber::fmt::init();
 
     let opts = Opts::parse();
 
-    println!("Waiting 3 seconds");
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    // info!("Waiting 3 seconds");
+    // tokio::time::sleep(Duration::from_secs(3)).await;
 
-    println!("Hello, client!");
+    info!("Hello, client!");
 
     if let Err(err) = send_stream(opts.into()).await {
-        eprintln!("send_stream error: {}", err);
+        error!("send_stream error: {}", err);
     }
 }

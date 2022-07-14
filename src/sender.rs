@@ -1,4 +1,5 @@
 use std::{
+    fmt::Debug,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -11,10 +12,12 @@ use tokio::{
     io::AsyncWriteExt,
     net::{tcp::OwnedWriteHalf, TcpStream},
 };
+use tracing::{debug, info, instrument};
 
 use crate::measurement::MeasurementSet;
 use crate::measurer::Measurer;
 
+#[derive(Debug)]
 pub struct SenderConfig {
     pub addr: String,
     pub freq: Duration,
@@ -54,24 +57,25 @@ impl Sender {
 
     pub async fn run(self) -> anyhow::Result<MeasurementSet> {
         let freq = self.config.freq;
-        let (counter, mut generator) = self.split();
-        let (mut measurer, stopper) = Measurer::new(freq, counter.clone());
+        let (sent_counter, mut generator) = self.split();
+        let received_counter = Default::default(); // TODO: something more useful
+        let (mut measurer, stopper) = Measurer::new(freq, sent_counter.clone(), received_counter);
 
         // Start measuring
         let mfut = tokio::spawn(async move { measurer.run().await });
 
         // Start writing
-        println!("Start writing");
-        let write_res = generator.run(counter.clone()).await;
+        info!("Start writing");
+        let write_res = generator.run(sent_counter).await;
         // Stop measuring once reading is complete
-        println!("STOP");
+        info!("STOP");
         stopper.stop();
-        println!("STOPPED");
+        info!("STOPPED");
 
         // Get the measurements and return them
         // if writing was successful
         let mset = mfut.await?;
-        println!("End Sender::run");
+        info!("End Sender::run");
         write_res.and(Ok(mset))
     }
 }
@@ -95,29 +99,30 @@ impl Generator {
         }
     }
 
+    #[instrument(skip(self))]
     pub async fn run(&mut self, counter: Arc<AtomicU64>) -> anyhow::Result<()> {
         let start_time = Instant::now();
         let mut rng = thread_rng();
         loop {
             let now = Instant::now();
             let elapsed = now - start_time;
-            println!("elapsed: {:.2}s", elapsed.as_secs_f64());
+            debug!("elapsed: {:.2}s", elapsed.as_secs_f64());
             if elapsed >= self.length {
                 break;
             }
 
             // Generate random chunk of data
             rng.fill_bytes(&mut self.buf);
-            println!("A");
+            debug!("A");
             // Send it over the wire
             self.writer.write_all(&self.buf).await?;
-            println!("B");
+            debug!("B");
             // Increment counter
             counter.fetch_add(1, Ordering::SeqCst);
-            println!("C");
+            debug!("C");
         }
 
-        println!("End Generator::run");
+        info!("End Generator::run");
         Ok(())
     }
 }

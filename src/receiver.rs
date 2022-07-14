@@ -11,6 +11,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+use tracing::{info, warn};
 
 use crate::{measurement::MeasurementSet, measurer::Measurer};
 
@@ -45,31 +46,28 @@ impl Receiver {
 
     /// TODO: Get rid of this method, probably.
     fn split(self) -> (Arc<AtomicU64>, Reader) {
-        let stream = self.stream;
-        let config = self.config;
-
-        let reader = Reader::new(stream, config);
-
+        let reader = Reader::new(self.stream, self.config);
         (self.counter, reader)
     }
 
     pub async fn run(self) -> anyhow::Result<MeasurementSet> {
         let freq = self.config.freq;
-        let (counter, mut reader) = self.split();
-        let (mut measurer, stopper) = Measurer::new(freq, counter.clone());
+        let (received_counter, mut reader) = self.split();
+        let sent_counter = Default::default(); // TODO: something more useful
+        let (mut measurer, stopper) = Measurer::new(freq, sent_counter, received_counter.clone());
 
         // Start measuring
         let mfut = tokio::spawn(async move { measurer.run().await });
 
         // Start reading
-        let read_res = reader.run(counter).await;
+        let read_res = reader.run(received_counter).await;
         // Stop measuring once reading is complete
         stopper.stop();
 
         // Get the measurements and return them
         // if reading was successful
         let mset = mfut.await?;
-        println!("End Receiver::run");
+        info!("End Receiver::run");
         read_res.and(Ok(mset))
     }
 }
@@ -113,13 +111,13 @@ impl Reader {
 
         loop {
             if let Err(err) = self.read_chunk(&counter).await {
-                println!("End Reader::run");
+                info!("End Reader::run");
 
                 return match err.kind() {
                     // EOF _is_ expected here.
                     UnexpectedEof | ConnectionReset => Ok(()),
                     other => {
-                        eprintln!("KIND: {:?} ({})", other, other);
+                        warn!("KIND: {:?} ({})", other, other);
                         Err(err.into())
                     }
                 };

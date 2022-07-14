@@ -8,6 +8,7 @@ use std::{
 };
 
 use tokio::sync::oneshot;
+use tracing::info;
 
 use crate::measurement::MeasurementSet;
 
@@ -16,8 +17,10 @@ use crate::measurement::MeasurementSet;
 pub struct Measurer {
     /// Measurement frequency
     freq: Duration,
-    /// Counter to measure
-    counter: Arc<AtomicU64>,
+    /// Counter for chunks sent
+    sent: Arc<AtomicU64>,
+    /// Counter for chunks received
+    received: Arc<AtomicU64>,
     /// One-shot channel indicating
     /// measurement should end.
     stop: Pin<Box<oneshot::Receiver<()>>>,
@@ -36,13 +39,18 @@ impl MeasurerStopper {
 }
 
 impl Measurer {
-    pub fn new(freq: Duration, counter: Arc<AtomicU64>) -> (Self, MeasurerStopper) {
+    pub fn new(
+        freq: Duration,
+        sent: Arc<AtomicU64>,
+        received: Arc<AtomicU64>,
+    ) -> (Self, MeasurerStopper) {
         let (stop_send, stop_recv) = oneshot::channel();
         let stopper = MeasurerStopper(stop_send);
         let stop = Box::pin(stop_recv);
         let measurer = Self {
             freq,
-            counter,
+            sent,
+            received,
             stop,
         };
 
@@ -59,13 +67,14 @@ impl Measurer {
             tokio::select! {
                 _ = &mut self.stop => { break; }
                 _ = interval.tick() => {
-                    let count = self.counter.load(Ordering::SeqCst);
-                    mset.record(count);
+                    let sent = self.sent.load(Ordering::SeqCst);
+                    let received = self.received.load(Ordering::SeqCst);
+                    mset.record(sent, received);
                 }
             }
         }
 
-        println!("End Measurer::run");
+        info!("End Measurer::run");
         mset
     }
 }
