@@ -1,0 +1,43 @@
+stages:
+  - build
+  - deploy
+
+nix-build-docker-image:
+  stage: build
+  image: nixos/nix:2.8.0
+  variables:
+    # NOTE: CACHIX_AUTH_TOKEN is set as a per-project Gitlab CI Variable
+    CACHIX_CACHE_NAME: nautilus-posenet
+  before_script:
+    # Enable nix flakes
+    - echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+    # Install required packages for nix build & push
+    - nix-env -iA nixpkgs.cachix nixpkgs.skopeo
+    # Set up cachix (avoid unnecessary rebuilds)
+    - cachix use "$CACHIX_CACHE_NAME"
+    # Login to Gitlab image registry
+    - skopeo login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    # Build image (and push artifacts to cachix)
+    - cachix watch-exec $CACHIX_CACHE_NAME nix -- build '.#dockerImage' --print-build-logs
+    # Push image to registry
+    - skopeo copy --insecure-policy docker-archive:result "docker://$CI_REGISTRY_IMAGE/nix-docker:$CI_COMMIT_SHORT_SHA"
+    # Alias image with `latest` tag (without re-pushing all the data)
+    - skopeo copy --insecure-policy "docker://$CI_REGISTRY_IMAGE/nix-docker:$CI_COMMIT_SHORT_SHA" "docker://$CI_REGISTRY_IMAGE/nix-docker:latest"
+
+deploy-k8s:
+  image: roffe/kubectl
+  stage: deploy
+  only:
+    refs:
+      - main
+  # Use appropriate service account with deploy permissions
+  # via Gitlab k8s cluster integration on posenet group
+  # See https://gitlab.nrp-nautilus.io/librareome/posenet/k8s
+  # for an overview of how this works
+  environment:
+    name: posenet
+    kubernetes:
+      namespace: posenet
+  script:
+    - cat k8s/*.yaml | envsubst '$CI_COMMIT_REF_NAME $CI_COMMIT_SHORT_SHA' | kubectl apply -f -
