@@ -1,28 +1,16 @@
 use std::{
-    io::ErrorKind,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
 
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
+use tokio::net::TcpStream;
+use tracing::{info, instrument};
+
+use crate::{
+    measurement::MeasurementSet,
+    measurer::{Measurer, MeasurerStopper},
+    reader::{EchoingReader, Reader, SimpleReader},
 };
-use tracing::{info, warn};
-
-use crate::{measurement::MeasurementSet, measurer::Measurer};
-
-pub struct Receiver {
-    /// TCP Stream to read from
-    stream: TcpStream,
-    /// Configuration values
-    config: ReceiverConfig,
-    /// Atomic chunk counter
-    counter: Arc<AtomicU64>,
-}
 
 #[derive(Clone, Copy)]
 pub struct ReceiverConfig {
@@ -34,33 +22,61 @@ pub struct ReceiverConfig {
     pub echo: bool,
 }
 
+pub struct Receiver {
+    /// TCP Stream to read from
+    stream: TcpStream,
+    /// Configuration values
+    config: ReceiverConfig,
+    /// Counter for chunks sent
+    sent: Arc<AtomicU64>,
+    /// Counter for chunks received
+    received: Arc<AtomicU64>,
+}
+
 impl Receiver {
     pub fn new(stream: TcpStream, config: ReceiverConfig) -> Self {
-        let counter = Arc::new(AtomicU64::new(0));
+        let sent = Arc::new(AtomicU64::new(0));
+        let received = Arc::new(AtomicU64::new(0));
         Self {
             stream,
             config,
-            counter,
+            sent,
+            received,
         }
     }
 
     /// TODO: Get rid of this method, probably.
-    fn split(self) -> (Arc<AtomicU64>, Reader) {
-        let reader = Reader::new(self.stream, self.config);
-        (self.counter, reader)
+    fn split(self) -> (Reader, Measurer, MeasurerStopper) {
+        let freq = self.config.freq;
+
+        let reader = if self.config.echo {
+            let inner = EchoingReader::new(
+                self.stream,
+                self.config.chunk_size,
+                self.sent.clone(),
+                self.received.clone(),
+            );
+            Reader::Echoing(inner)
+        } else {
+            let (read_half, _write_half) = self.stream.into_split();
+            let inner = SimpleReader::new(read_half, self.config.chunk_size, self.received.clone());
+            Reader::Simple(inner)
+        };
+
+        let (measurer, stopper) = Measurer::new(freq, self.sent, self.received);
+
+        (reader, measurer, stopper)
     }
 
+    #[instrument(name = "Receiver::run", skip(self))]
     pub async fn run(self) -> anyhow::Result<MeasurementSet> {
-        let freq = self.config.freq;
-        let (received_counter, mut reader) = self.split();
-        let sent_counter = Default::default(); // TODO: something more useful
-        let (mut measurer, stopper) = Measurer::new(freq, sent_counter, received_counter.clone());
+        let (mut reader, mut measurer, stopper) = self.split();
 
         // Start measuring
         let mfut = tokio::spawn(async move { measurer.run().await });
 
         // Start reading
-        let read_res = reader.run(received_counter).await;
+        let read_res = reader.run().await;
         // Stop measuring once reading is complete
         stopper.stop();
 
@@ -69,59 +85,5 @@ impl Receiver {
         let mset = mfut.await?;
         info!("End Receiver::run");
         read_res.and(Ok(mset))
-    }
-}
-
-struct Reader {
-    stream: TcpStream,
-    config: ReceiverConfig,
-    buf: Vec<u8>,
-}
-
-impl Reader {
-    pub fn new(stream: TcpStream, config: ReceiverConfig) -> Self {
-        let mut buf = Vec::new();
-        buf.resize(config.chunk_size, 0);
-
-        Self {
-            stream,
-            config,
-            buf,
-        }
-    }
-
-    async fn read_chunk(&mut self, counter: &AtomicU64) -> std::io::Result<()> {
-        match self.stream.read_exact(&mut self.buf).await {
-            Ok(_nbytes) => {
-                counter.fetch_add(1, Ordering::SeqCst);
-
-                // Optionally reply on stream
-                if self.config.echo {
-                    self.stream.write_all(&self.buf).await?;
-                }
-
-                Ok(())
-            }
-            Err(err) => Err(err),
-        }
-    }
-
-    async fn run(&mut self, counter: Arc<AtomicU64>) -> anyhow::Result<()> {
-        use ErrorKind::{ConnectionReset, UnexpectedEof};
-
-        loop {
-            if let Err(err) = self.read_chunk(&counter).await {
-                info!("End Reader::run");
-
-                return match err.kind() {
-                    // EOF _is_ expected here.
-                    UnexpectedEof | ConnectionReset => Ok(()),
-                    other => {
-                        warn!("KIND: {:?} ({})", other, other);
-                        Err(err.into())
-                    }
-                };
-            }
-        }
     }
 }

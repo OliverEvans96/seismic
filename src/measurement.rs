@@ -1,5 +1,8 @@
 use std::time::{Duration, Instant, SystemTime};
 
+use tracing::debug;
+
+#[derive(Debug)]
 pub struct Measurement {
     /// Time offset start beginning of measurement set
     pub dt: Duration,
@@ -13,7 +16,9 @@ impl Measurement {
     pub fn new(start: Instant, sent: u64, received: u64) -> Self {
         let now = Instant::now();
         let dt = now - start;
-        Self { dt, sent, received }
+        let measurement = Self { dt, sent, received };
+        debug!("{:?}", measurement);
+        measurement
     }
 }
 
@@ -44,6 +49,7 @@ impl MeasurementSet {
     }
 
     pub fn print(&self) {
+        // TODO: Format SystemTime
         println!("Measurements @ {:?}", self.start_time);
         for measurement in &self.measurements {
             let secs = measurement.dt.as_secs_f64();

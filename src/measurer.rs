@@ -8,7 +8,7 @@ use std::{
 };
 
 use tokio::sync::oneshot;
-use tracing::info;
+use tracing::{info, instrument};
 
 use crate::measurement::MeasurementSet;
 
@@ -35,6 +35,7 @@ impl MeasurerStopper {
         // end has already hung up, which means
         // that stopping has already occurred.
         self.0.send(()).ok();
+        info!("MeasurerStopper::stop()");
     }
 }
 
@@ -57,6 +58,7 @@ impl Measurer {
         (measurer, stopper)
     }
 
+    #[instrument(name = "Measurer::run", skip(self))]
     pub async fn run(&mut self) -> MeasurementSet {
         // Ticks once for each measurement
         let mut interval = tokio::time::interval(self.freq);

@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use clap::Parser;
 
-use seismic::sender::{Sender, SenderConfig};
+use seismic::{
+    sender::{Sender, SenderConfig},
+    tracing::init_tracing,
+};
 use tracing::{error, info, instrument};
 
 #[derive(Parser)]
@@ -50,13 +53,9 @@ async fn send_stream(config: SenderConfig) -> anyhow::Result<()> {
 #[instrument]
 #[tokio::main]
 async fn main() {
-    // console_subscriber::init();
-    tracing_subscriber::fmt::init();
+    init_tracing("seismic_client", tracing::Level::DEBUG).expect("failed to init tracing");
 
     let opts = Opts::parse();
-
-    // info!("Waiting 3 seconds");
-    // tokio::time::sleep(Duration::from_secs(3)).await;
 
     info!("Hello, client!");
 

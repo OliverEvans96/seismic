@@ -3,8 +3,11 @@ use std::{net::SocketAddr, time::Duration};
 use clap::Parser;
 use tokio::net::{TcpListener, TcpStream};
 
-use seismic::receiver::{Receiver, ReceiverConfig};
-use tracing::{error, info};
+use seismic::{
+    receiver::{Receiver, ReceiverConfig},
+    tracing::init_tracing,
+};
+use tracing::{error, info, instrument};
 
 #[derive(Parser)]
 struct Opts {
@@ -20,6 +23,7 @@ struct Opts {
     freq_ms: u16,
 }
 
+#[instrument]
 async fn listen_control(port: u16) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(&addr).await?;
@@ -32,10 +36,12 @@ async fn listen_control(port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[instrument(skip(_stream))]
 async fn handle_control(_stream: TcpStream, addr: SocketAddr) {
     info!("Handling control connection from {}", addr);
 }
 
+#[instrument(skip(config))]
 async fn listen_data(port: u16, config: ReceiverConfig) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(&addr).await?;
@@ -48,6 +54,7 @@ async fn listen_data(port: u16, config: ReceiverConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[instrument(skip(stream, config))]
 async fn handle_data(stream: TcpStream, addr: SocketAddr, config: ReceiverConfig) {
     info!("Handling data connection from {}", addr);
 
@@ -61,10 +68,10 @@ async fn handle_data(stream: TcpStream, addr: SocketAddr, config: ReceiverConfig
     }
 }
 
+#[instrument]
 #[tokio::main]
 async fn main() {
-    // console_subscriber::init();
-    tracing_subscriber::fmt::init();
+    init_tracing("seismic_server", tracing::Level::INFO).expect("failed to init tracing");
 
     let opts = Opts::parse();
 
@@ -73,7 +80,7 @@ async fn main() {
     let config = ReceiverConfig {
         freq: Duration::from_millis(opts.freq_ms.into()),
         chunk_size: opts.chunk_size.into(),
-        echo: false,
+        echo: true,
     };
 
     let data_fut = listen_data(opts.data_port, config);
