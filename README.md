@@ -8,7 +8,8 @@ This is a sample output for a 5-second transmission, with 1KiB chunks.
 
 ### Client
 
-`  2022-07-14T23:24:00.791940Z  INFO client: Hello, client!
+```
+  2022-07-14T23:24:00.791940Z  INFO client: Hello, client!
     at src/bin/client.rs:63
 
   2022-07-14T23:24:00.843101Z  INFO seismic::reader: SimpleReader::new
