@@ -61,7 +61,10 @@ async fn handle_data(stream: TcpStream, addr: SocketAddr, config: ReceiverConfig
     let receiver = Receiver::new(stream, config);
 
     match receiver.run().await {
-        Ok(mset) => mset.print(),
+        Ok(mset) => {
+            mset.print();
+            mset.plot();
+        }
         Err(err) => {
             error!("data error: {}", err);
         }

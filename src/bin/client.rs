@@ -41,7 +41,10 @@ impl From<Opts> for SenderConfig {
 async fn send_stream(config: SenderConfig) -> anyhow::Result<()> {
     let sender = Sender::new(config).await?;
     match sender.run().await {
-        Ok(mset) => mset.print(),
+        Ok(mset) => {
+            mset.print();
+            mset.plot();
+        }
         Err(err) => {
             error!("send error: {}", err);
         }
@@ -53,7 +56,7 @@ async fn send_stream(config: SenderConfig) -> anyhow::Result<()> {
 #[instrument]
 #[tokio::main]
 async fn main() {
-    init_tracing("seismic_client", tracing::Level::DEBUG).expect("failed to init tracing");
+    init_tracing("seismic_client", tracing::Level::INFO).expect("failed to init tracing");
 
     let opts = Opts::parse();
 
