@@ -9,7 +9,10 @@ pub fn init_tracing(service_name: &str, level: Level) -> anyhow::Result<()> {
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
     let logging = tracing_subscriber::fmt::layer().pretty();
 
-    let filter = tracing_subscriber::filter::Targets::new().with_target("seismic", level);
+    let filter = tracing_subscriber::filter::Targets::new()
+        .with_target("seismic", level)
+        .with_target("server", level)
+        .with_target("client", level);
 
     tracing_subscriber::registry()
         .with(telemetry)
