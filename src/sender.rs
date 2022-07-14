@@ -152,6 +152,7 @@ impl Generator {
             debug!("A");
             // Send it over the wire
             self.write_half.write_all(&self.buf).await?;
+            self.write_half.flush().await?;
             debug!("B");
             // Increment counter
             self.sent.fetch_add(1, Ordering::SeqCst);
