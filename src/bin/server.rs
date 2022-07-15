@@ -24,7 +24,11 @@ struct Opts {
     #[clap(short, default_value = "200")]
     freq_ms: u16,
     /// Don't print measurements as they're recorded
+    #[clap(short)]
     quiet: bool,
+    //// Enable tracing to Jaeger
+    #[clap(short)]
+    jaeger: bool,
 }
 
 #[instrument]
@@ -89,9 +93,10 @@ impl From<Opts> for ReceiverConfig {
 #[instrument]
 #[tokio::main]
 async fn main() {
-    init_tracing("seismic_server", tracing::Level::INFO).expect("failed to init tracing");
-
     let opts = Opts::parse();
+
+    init_tracing("seismic_server", tracing::Level::INFO, opts.jaeger)
+        .expect("failed to init tracing");
 
     info!("Hello, server!");
 

@@ -25,7 +25,11 @@ struct Opts {
     #[clap(short = 'p', default_value = "7225")]
     data_port: u16,
     /// Don't print measurements as they're recorded
+    #[clap(short)]
     quiet: bool,
+    //// Enable tracing to Jaeger
+    #[clap(short)]
+    jaeger: bool,
 }
 
 impl From<Opts> for SenderConfig {
@@ -59,9 +63,10 @@ async fn send_stream(config: SenderConfig) -> anyhow::Result<()> {
 #[instrument]
 #[tokio::main]
 async fn main() {
-    init_tracing("seismic_client", tracing::Level::INFO).expect("failed to init tracing");
-
     let opts = Opts::parse();
+
+    init_tracing("seismic_client", tracing::Level::INFO, opts.jaeger)
+        .expect("failed to init tracing");
 
     info!("Hello, client!");
 
