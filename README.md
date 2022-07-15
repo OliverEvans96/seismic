@@ -9,70 +9,6 @@ This is a sample output for a 5-second transmission, with 1KiB chunks.
 ### Client
 
 ```
-  2022-07-14T23:24:00.791940Z  INFO client: Hello, client!
-    at src/bin/client.rs:63
-
-  2022-07-14T23:24:00.843101Z  INFO seismic::reader: SimpleReader::new
-    at src/reader.rs:99
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:00.843202Z  INFO seismic::sender: Start measuring
-    at src/sender.rs:78
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:00.843256Z  INFO seismic::sender: Start reading
-    at src/sender.rs:82
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:00.843283Z  INFO seismic::sender: Start writing
-    at src/sender.rs:86
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:00.843332Z  INFO seismic::sender: Wait for writing to complete
-    at src/sender.rs:90
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:00.843488Z  INFO seismic::reader: start SimpleReader::run
-    at src/reader.rs:123
-    in seismic::reader::SimpleReader::Run
-
-  2022-07-14T23:24:05.874745Z  INFO seismic::sender: End Generator::run
-    at src/sender.rs:162
-    in seismic::sender::Generator::run
-
-  2022-07-14T23:24:05.874975Z  INFO seismic::sender: Wait for reading to complete
-    at src/sender.rs:94
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:06.951486Z  INFO seismic::reader: end SimpleReader::run (Ok(()))
-    at src/reader.rs:128
-    in seismic::reader::SimpleReader::Run
-
-  2022-07-14T23:24:06.951762Z  INFO seismic::sender: Stop measuring
-    at src/sender.rs:98
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:06.951939Z  INFO seismic::measurer: MeasurerStopper::stop()
-    at src/measurer.rs:38
-    in seismic::sender::Sender::run
-    in client::send_stream
-
-  2022-07-14T23:24:06.951998Z  INFO seismic::measurer: End Measurer::run
-    at src/measurer.rs:79
-    in seismic::measurer::Measurer::run
-
-  2022-07-14T23:24:06.952184Z  INFO seismic::sender: End Sender::run
-    at src/sender.rs:104
-    in seismic::sender::Sender::run
-    in client::send_stream
-
 Measurements @ SystemTime { tv_sec: 1657841040, tv_nsec: 843414860 }
 0.00s:        270 sent /          0 received
 0.20s:        850 sent /         39 received
@@ -113,49 +49,6 @@ Measurements @ SystemTime { tv_sec: 1657841040, tv_nsec: 843414860 }
 ### Server
 
 ```
-  2022-07-14T23:24:00.869215Z  INFO server: Handling data connection from 10.244.169.192:23191
-    at src/bin/server.rs:59
-    in server::handle_data with addr: 10.244.169.192:23191
-
-  2022-07-14T23:24:00.869285Z  INFO seismic::reader: SimpleReader::new
-    at src/reader.rs:99
-    in seismic::receiver::Receiver::run
-    in server::handle_data with addr: 10.244.169.192:23191
-
-  2022-07-14T23:24:00.869341Z  INFO seismic::reader: Reader::run
-    at src/reader.rs:26
-    in seismic::reader::Reader::run
-    in seismic::receiver::Receiver::run
-    in server::handle_data with addr: 10.244.169.192:23191
-
-  2022-07-14T23:24:00.869399Z  INFO seismic::reader: start EchoingReader::run
-    at src/reader.rs:74
-    in seismic::reader::EchoingReader::run
-    in seismic::reader::Reader::run
-    in seismic::receiver::Receiver::run
-    in server::handle_data with addr: 10.244.169.192:23191
-
-  2022-07-14T23:24:06.918490Z  INFO seismic::reader: end EchoingReader::run (Ok(()))
-    at src/reader.rs:79
-    in seismic::reader::EchoingReader::run
-    in seismic::reader::Reader::run
-    in seismic::receiver::Receiver::run
-    in server::handle_data with addr: 10.244.169.192:23191
-
-  2022-07-14T23:24:06.918601Z  INFO seismic::measurer: MeasurerStopper::stop()
-    at src/measurer.rs:38
-    in seismic::receiver::Receiver::run
-    in server::handle_data with addr: 10.244.169.192:23191
-
-  2022-07-14T23:24:06.918626Z  INFO seismic::measurer: End Measurer::run
-    at src/measurer.rs:79
-    in seismic::measurer::Measurer::run
-
-  2022-07-14T23:24:06.918646Z  INFO seismic::receiver: End Receiver::run
-    at src/receiver.rs:86
-    in seismic::receiver::Receiver::run
-    in server::handle_data with addr: 10.244.169.192:23191
-
 Measurements @ SystemTime { tv_sec: 1657841040, tv_nsec: 869478053 }
 0.00s:          1 sent /          1 received
 0.20s:         88 sent /         88 received
