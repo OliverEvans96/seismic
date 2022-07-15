@@ -27,6 +27,9 @@ struct Opts {
     /// Don't print measurements as they're recorded
     #[clap(short)]
     quiet: bool,
+    /// Print INFO statements (default is WARN+)
+    #[clap(short)]
+    verbose: bool,
     //// Enable tracing to Jaeger
     #[clap(short)]
     jaeger: bool,
@@ -65,8 +68,13 @@ async fn send_stream(config: SenderConfig) -> anyhow::Result<()> {
 async fn main() {
     let opts = Opts::parse();
 
-    init_tracing("seismic_client", tracing::Level::INFO, opts.jaeger)
-        .expect("failed to init tracing");
+    let level = if opts.verbose {
+        tracing::Level::INFO
+    } else {
+        tracing::Level::WARN
+    };
+
+    init_tracing("seismic_client", level, opts.jaeger).expect("failed to init tracing");
 
     info!("Hello, client!");
 
