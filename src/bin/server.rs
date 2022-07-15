@@ -17,10 +17,14 @@ struct Opts {
     /// TCP port for data transfer.
     #[clap(long, default_value = "7225")]
     data_port: u16,
+    /// Bytes per chunk
     #[clap(short, default_value = "1024")]
     chunk_size: u16,
+    /// Measurement frequency
     #[clap(short, default_value = "200")]
     freq_ms: u16,
+    /// Don't print measurements as they're recorded
+    quiet: bool,
 }
 
 #[instrument]
@@ -71,6 +75,17 @@ async fn handle_data(stream: TcpStream, addr: SocketAddr, config: ReceiverConfig
     }
 }
 
+impl From<Opts> for ReceiverConfig {
+    fn from(opts: Opts) -> Self {
+        Self {
+            freq: Duration::from_millis(opts.freq_ms.into()),
+            chunk_size: opts.chunk_size.into(),
+            echo: true,
+            print_live: !opts.quiet,
+        }
+    }
+}
+
 #[instrument]
 #[tokio::main]
 async fn main() {
@@ -80,14 +95,8 @@ async fn main() {
 
     info!("Hello, server!");
 
-    let config = ReceiverConfig {
-        freq: Duration::from_millis(opts.freq_ms.into()),
-        chunk_size: opts.chunk_size.into(),
-        echo: true,
-    };
-
-    let data_fut = listen_data(opts.data_port, config);
     let control_fut = listen_control(opts.control_port);
+    let data_fut = listen_data(opts.data_port, opts.into());
 
     let (data_res, control_res) = tokio::join!(data_fut, control_fut);
 

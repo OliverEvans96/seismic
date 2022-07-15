@@ -24,6 +24,8 @@ pub struct Measurer {
     /// One-shot channel indicating
     /// measurement should end.
     stop: Pin<Box<oneshot::Receiver<()>>>,
+    /// The measurements themselves
+    mset: MeasurementSet,
 }
 
 pub struct MeasurerStopper(oneshot::Sender<()>);
@@ -42,28 +44,30 @@ impl MeasurerStopper {
 impl Measurer {
     pub fn new(
         freq: Duration,
+        print_live: bool,
         sent: Arc<AtomicU64>,
         received: Arc<AtomicU64>,
     ) -> (Self, MeasurerStopper) {
         let (stop_send, stop_recv) = oneshot::channel();
         let stopper = MeasurerStopper(stop_send);
         let stop = Box::pin(stop_recv);
+        let mset = MeasurementSet::new(print_live);
+
         let measurer = Self {
             freq,
             sent,
             received,
             stop,
+            mset,
         };
 
         (measurer, stopper)
     }
 
     #[instrument(name = "Measurer::run", skip(self))]
-    pub async fn run(&mut self) -> MeasurementSet {
+    pub async fn run(mut self) -> MeasurementSet {
         // Ticks once for each measurement
         let mut interval = tokio::time::interval(self.freq);
-
-        let mut mset = MeasurementSet::new();
 
         loop {
             tokio::select! {
@@ -71,12 +75,12 @@ impl Measurer {
                 _ = interval.tick() => {
                     let sent = self.sent.load(Ordering::SeqCst);
                     let received = self.received.load(Ordering::SeqCst);
-                    mset.record(sent, received);
+                    self.mset.record(sent, received);
                 }
             }
         }
 
         info!("End Measurer::run");
-        mset
+        self.mset
     }
 }

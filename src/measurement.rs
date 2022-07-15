@@ -23,31 +23,48 @@ impl Measurement {
         debug!("{:?}", measurement);
         measurement
     }
+
+    pub fn print(&self) {
+        println!(
+            "{:.2}s: {:10} sent / {:10} received",
+            self.dt.as_secs_f32(),
+            self.sent,
+            self.received
+        );
+    }
 }
 
 pub struct MeasurementSet {
     start: Instant,
     start_time: SystemTime,
     pub measurements: Vec<Measurement>,
+    /// Whether to print new measurements
+    /// as they're recorded
+    print_live: bool,
 }
 
 impl Default for MeasurementSet {
     fn default() -> Self {
-        Self::new()
+        let print_live = false;
+        Self::new(print_live)
     }
 }
 
 impl MeasurementSet {
-    pub fn new() -> Self {
+    pub fn new(print_live: bool) -> Self {
         Self {
             start: Instant::now(),
             start_time: SystemTime::now(),
             measurements: Vec::new(),
+            print_live,
         }
     }
 
     pub fn record(&mut self, sent: u64, received: u64) {
         let measurement = Measurement::new(self.start, sent, received);
+        if self.print_live {
+            measurement.print();
+        }
         self.measurements.push(measurement);
     }
 
@@ -55,11 +72,7 @@ impl MeasurementSet {
         // TODO: Format SystemTime
         println!("Measurements @ {:?}", self.start_time);
         for measurement in &self.measurements {
-            let secs = measurement.dt.as_secs_f64();
-            println!(
-                "{:.2}s: {:10} sent / {:10} received",
-                secs, measurement.sent, measurement.received
-            );
+            measurement.print();
         }
         println!("");
     }

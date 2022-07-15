@@ -18,12 +18,14 @@ struct Opts {
     /// Measurement frequency
     #[clap(short, default_value = "200")]
     freq_ms: u16,
-    /// Chunk size of measurements
+    /// Bytes per chunk
     #[clap(short, default_value = "1024")]
     chunk_size: usize,
-    /// Data port to send to
+    /// TCP port for data transfer.
     #[clap(short = 'p', default_value = "7225")]
     data_port: u16,
+    /// Don't print measurements as they're recorded
+    quiet: bool,
 }
 
 impl From<Opts> for SenderConfig {
@@ -33,6 +35,7 @@ impl From<Opts> for SenderConfig {
             freq: Duration::from_millis(opts.freq_ms as u64),
             length: Duration::from_secs(opts.length_secs as u64),
             chunk_size: opts.chunk_size,
+            print_live: !opts.quiet,
         }
     }
 }

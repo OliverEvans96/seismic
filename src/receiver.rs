@@ -20,6 +20,9 @@ pub struct ReceiverConfig {
     pub chunk_size: usize,
     /// Whether to echo data back to stream
     pub echo: bool,
+    /// Whether to print new measurements
+    /// as they're recorded
+    pub print_live: bool,
 }
 
 pub struct Receiver {
@@ -63,14 +66,15 @@ impl Receiver {
             Reader::Simple(inner)
         };
 
-        let (measurer, stopper) = Measurer::new(freq, self.sent, self.received);
+        let (measurer, stopper) =
+            Measurer::new(freq, self.config.print_live, self.sent, self.received);
 
         (reader, measurer, stopper)
     }
 
     #[instrument(name = "Receiver::run", skip(self))]
     pub async fn run(self) -> anyhow::Result<MeasurementSet> {
-        let (mut reader, mut measurer, stopper) = self.split();
+        let (mut reader, measurer, stopper) = self.split();
 
         // Start measuring
         let mfut = tokio::spawn(async move { measurer.run().await });

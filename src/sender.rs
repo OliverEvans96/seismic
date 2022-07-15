@@ -12,17 +12,24 @@ use tokio::{
     io::AsyncWriteExt,
     net::{tcp::OwnedWriteHalf, TcpStream},
 };
-use tracing::{debug, info, instrument};
+use tracing::{info, instrument};
 
 use crate::{measurement::MeasurementSet, measurer::MeasurerStopper};
 use crate::{measurer::Measurer, reader::SimpleReader};
 
 #[derive(Debug)]
 pub struct SenderConfig {
+    /// Destination address of receiver
     pub addr: String,
+    /// Measurement frequency
     pub freq: Duration,
+    /// Length of transmission
     pub length: Duration,
+    /// Bytes per chunk
     pub chunk_size: usize,
+    /// Whether to print new measurements
+    /// as they're recorded
+    pub print_live: bool,
 }
 
 pub struct Sender {
@@ -65,14 +72,15 @@ impl Sender {
 
         let reader = SimpleReader::new(read_half, self.config.chunk_size, self.received.clone());
 
-        let (measurer, stopper) = Measurer::new(freq, self.sent, self.received);
+        let (measurer, stopper) =
+            Measurer::new(freq, self.config.print_live, self.sent, self.received);
 
         (generator, reader, measurer, stopper)
     }
 
     #[instrument(name = "Sender::run", skip(self))]
     pub async fn run(self) -> anyhow::Result<MeasurementSet> {
-        let (generator, mut reader, mut measurer, stopper) = self.split();
+        let (generator, mut reader, measurer, stopper) = self.split();
 
         // Start measuring
         info!("Start measuring");
@@ -139,7 +147,7 @@ impl Generator {
         loop {
             let now = Instant::now();
             let elapsed = now - start_time;
-            debug!("elapsed: {:.2}s", elapsed.as_secs_f64());
+
             if elapsed >= self.length {
                 break;
             }
@@ -149,14 +157,13 @@ impl Generator {
                 let mut rng = thread_rng();
                 rng.fill_bytes(&mut self.buf);
             }
-            debug!("A");
+
             // Send it over the wire
             self.write_half.write_all(&self.buf).await?;
             self.write_half.flush().await?;
-            debug!("B");
+
             // Increment counter
             self.sent.fetch_add(1, Ordering::SeqCst);
-            debug!("C");
         }
 
         info!("End Generator::run");
